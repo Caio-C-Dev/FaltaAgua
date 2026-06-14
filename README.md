@@ -1,68 +1,70 @@
 # FaltaAgua
 
-App Flutter + worker Python que monitora notícias de falta de água em Belo Horizonte e região metropolitana. Envia push notification quando a cidade cadastrada do usuário é afetada.
+> **Why I built this:** in my region, the water supply is often cut off and I would only find out late in the day — sometimes I couldn't even shower. So I built this app to know when it happens and prepare for the outage in advance.
+
+A Flutter app + Python worker that monitors news of water supply outages in Belo Horizonte and its metropolitan area. Sends a push notification when the user's registered city is affected.
 
 ## Stack
 
 - **App:** Flutter 3.41 + Firebase Messaging + Cloud Firestore
-- **Worker:** Python 3.11 rodando em GitHub Actions (cron 2/2h)
-- **Notícias:** Google News RSS (sem API key)
-- **Push:** Firebase Cloud Messaging (topics por cidade)
-- **DB:** Firestore (histórico de alertas)
-- **Custo total:** R$ 0,00
+- **Worker:** Python 3.11 running on GitHub Actions (cron every 2 hours)
+- **News source:** Google News RSS (no API key required)
+- **Push:** Firebase Cloud Messaging (per-city topics)
+- **DB:** Firestore (alert history)
+- **Total cost:** $0.00
 
-## Como funciona
+## How it works
 
 ```
-GitHub Actions (cron 2/2h)
-  → Worker Python busca Google News RSS
-  → Classifica: ALERTA / RETORNO / ignora
-  → Detecta cidades da Grande BH no texto
-  → Envia push pro topic FCM da cidade
-  → App recebe push (mesmo fechado/sem abrir há meses)
+GitHub Actions (cron every 2h)
+  → Python worker fetches Google News RSS
+  → Classifies: ALERT / RECOVERY / ignore
+  → Detects Greater BH cities in the text
+  → Sends push to the city's FCM topic
+  → App receives push (even when closed or unopened for months)
 ```
 
-## Estrutura
+## Project structure
 
 ```
 FaltaAgua/
 ├── app/                    # Flutter app
 │   ├── lib/
 │   │   ├── main.dart
-│   │   ├── data/cities.dart           # Cidades da Grande BH
+│   │   ├── data/cities.dart           # Greater BH cities
 │   │   ├── screens/
-│   │   │   ├── setup_screen.dart      # Cadastro cidade + bairro
-│   │   │   ├── home_screen.dart       # Tela principal
-│   │   │   └── history_screen.dart    # Histórico de alertas
+│   │   │   ├── setup_screen.dart      # City + neighborhood registration
+│   │   │   ├── home_screen.dart       # Main screen
+│   │   │   └── history_screen.dart    # Alert history
 │   │   ├── services/
 │   │   │   ├── storage.dart           # SharedPreferences
 │   │   │   └── notification_service.dart  # FCM + local notif
-│   │   └── utils/slug.dart            # Normaliza nome de cidade
+│   │   └── utils/slug.dart            # City name normalization
 │   └── pubspec.yaml
-├── worker/                 # Worker Python
+├── worker/                 # Python worker
 │   ├── main.py             # Entry point
-│   ├── config.py           # Cidades + keywords
+│   ├── config.py           # Cities + keywords
 │   ├── news_fetcher.py     # Google News RSS
-│   ├── classifier.py       # ALERTA / RETORNO + extrai bairros
-│   ├── notifier.py         # FCM + Firestore dedup
-│   ├── slug.py             # Mesma normalização do app
+│   ├── classifier.py       # ALERT / RECOVERY + neighborhood extraction
+│   ├── notifier.py         # FCM + Firestore deduplication
+│   ├── slug.py             # Same normalization as the app
 │   └── requirements.txt
 ├── .github/workflows/
-│   └── check_news.yml      # Cron 2/2h
+│   └── check_news.yml      # Cron every 2 hours
 └── README.md
 ```
 
-## Setup local
+## Local setup
 
 ### 1. Firebase
 
-1. Cria projeto em [console.firebase.google.com](https://console.firebase.google.com)
-2. Add app Android → package `com.aguabh.falta_agua`
-3. Baixa `google-services.json` → `app/android/app/google-services.json`
-4. Build → Firestore → Create database → modo teste → região `southamerica-east1`
-5. Project Settings → Service accounts → Generate new private key → baixa JSON
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com)
+2. Add an Android app → package `com.aguabh.falta_agua`
+3. Download `google-services.json` → `app/android/app/google-services.json`
+4. Build → Firestore → Create database → test mode → region `southamerica-east1`
+5. Project Settings → Service accounts → Generate new private key → download JSON
 
-### 2. App Flutter
+### 2. Flutter app
 
 ```bash
 cd app
@@ -70,45 +72,45 @@ flutter pub get
 flutter run
 ```
 
-Após primeira tela de histórico abrir, Firestore vai pedir índice composto:
+The first time the history screen opens, Firestore will ask for a composite index:
 - Collection: `sent_alerts`
 - Fields: `cidades_slug` (Array contains), `created_at` (Descending)
 
-### 3. Worker local (teste)
+### 3. Worker (local test)
 
 ```bash
 cd worker
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1   # Windows
-# source .venv/bin/activate     # Linux/Mac
+# source .venv/bin/activate     # Linux/macOS
 pip install -r requirements.txt
 
-# Salva service account JSON como worker/service_account.json
+# Save the service account JSON as worker/service_account.json
 python main.py
 ```
 
-### 4. GitHub Actions (produção)
+### 4. GitHub Actions (production)
 
-1. Push do repo pro GitHub
+1. Push the repo to GitHub
 2. Settings → Secrets and variables → Actions → New repository secret:
    - Name: `FIREBASE_SERVICE_ACCOUNT`
-   - Value: conteúdo INTEIRO do `service_account.json`
-3. Actions → habilita workflows
-4. Workflow roda automático a cada 2 horas
+   - Value: the FULL contents of `service_account.json`
+3. Actions → enable workflows
+4. The workflow runs automatically every 2 hours
 
-## Cidades monitoradas
+## Monitored cities
 
 Belo Horizonte, Contagem, Betim, Santa Luzia, Ribeirão das Neves, Sabará, Nova Lima, Confins, Ibirité, Vespasiano, Lagoa Santa, Pedro Leopoldo, Caeté.
 
-Quando notícia menciona "Grande BH" ou "Região Metropolitana", alerta é expandido pra todas cidades acima.
+When a news article mentions "Grande BH" or "Região Metropolitana", the alert is expanded to all cities above.
 
-## Garantia de entrega de notificação
+## Delivery guarantees
 
-- **FCM via Google Play Services** entrega push mesmo com app fechado
-- **`priority: high`** bypassa Doze mode
-- **Battery optimization exemption** (pedido pelo app) impede OEMs (Xiaomi/Samsung) de matar
-- **`onTokenRefresh`** atualiza token automático se Google rotacionar
+- **FCM via Google Play Services** delivers push even when the app is closed
+- **`priority: high`** bypasses Doze mode
+- **Battery optimization exemption** (requested by the app) prevents OEMs (Xiaomi, Samsung) from killing the service
+- **`onTokenRefresh`** updates the token automatically if Google rotates it
 
-## Licença
+## License
 
 MIT
