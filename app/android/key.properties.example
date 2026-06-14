@@ -1,0 +1,4 @@
+storePassword=SUA_SENHA
+keyPassword=SUA_SENHA
+keyAlias=falta-agua
+storeFile=C:/Users/caiof/falta-agua-key.jks

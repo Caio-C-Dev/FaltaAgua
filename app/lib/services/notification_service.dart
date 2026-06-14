@@ -18,6 +18,19 @@ class NotificationService {
       onDidReceiveNotificationResponse: _onLocalNotifTap,
     );
 
+    const channel = AndroidNotificationChannel(
+      'falta_agua_channel',
+      'Alertas Falta de Água',
+      description: 'Notificações de falta de água na sua região',
+      importance: Importance.max,
+      enableVibration: true,
+      playSound: true,
+    );
+    await _local
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
     final messaging = FirebaseMessaging.instance;
     await messaging.requestPermission(alert: true, badge: true, sound: true);
 

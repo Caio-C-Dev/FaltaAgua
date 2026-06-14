@@ -88,8 +88,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 textAlign: TextAlign.center),
             const SizedBox(height: 32),
             const Text(
-              'Você receberá push notification quando houver notícia de falta de água na sua região.',
+              'Agora é só aguardar. Quando houver falta de água na sua região, nós te notificaremos.',
               textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15),
             ),
             const SizedBox(height: 32),
             if (_city != null)

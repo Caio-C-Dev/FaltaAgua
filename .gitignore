@@ -10,6 +10,9 @@ app/ios/Pods/
 app/ios/.symlinks/
 app/android/.gradle/
 app/android/local.properties
+app/android/key.properties
+*.jks
+*.keystore
 app/android/app/google-services.json
 app/ios/Runner/GoogleService-Info.plist
 agua-bh-alert-firebase-adminsdk-fbsvc-e98c8e55cd.json
