@@ -1,0 +1,35 @@
+# Flutter
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/build/
+app/ios/Pods/
+app/ios/.symlinks/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/google-services.json
+app/ios/Runner/GoogleService-Info.plist
+agua-bh-alert-firebase-adminsdk-fbsvc-e98c8e55cd.json
+
+# Python
+worker/__pycache__/
+worker/*.pyc
+worker/.venv/
+worker/service_account.json
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node trash
+node_modules/
+package.json
+package-lock.json

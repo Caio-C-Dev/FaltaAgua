@@ -1,0 +1,15 @@
+const grandeBHCities = [
+  'Belo Horizonte',
+  'Contagem',
+  'Betim',
+  'Santa Luzia',
+  'Ribeirão das Neves',
+  'Sabará',
+  'Nova Lima',
+  'Confins',
+  'Ibirité',
+  'Vespasiano',
+  'Lagoa Santa',
+  'Pedro Leopoldo',
+  'Caeté',
+];
