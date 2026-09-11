@@ -4,10 +4,23 @@ on:
   schedule:
     - cron: '0 */2 * * *'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Só classificar e imprimir, sem enviar push'
+        type: boolean
+        default: false
+      lookback_hours:
+        description: 'Janela de busca em horas'
+        default: '3'
+
+concurrency:
+  group: check-news
+  cancel-in-progress: false
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -25,4 +38,6 @@ jobs:
         working-directory: worker
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          LOOKBACK_HOURS: ${{ inputs.lookback_hours || '3' }}
         run: python main.py

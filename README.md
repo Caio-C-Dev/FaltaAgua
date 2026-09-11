@@ -87,6 +87,12 @@ pip install -r requirements.txt
 
 # Save the service account JSON as worker/service_account.json
 python main.py
+
+# Classify only, without sending push or touching Firebase:
+DRY_RUN=1 python main.py          # PowerShell: $env:DRY_RUN=1; python main.py
+
+# Widen the search window (default: 3 hours):
+LOOKBACK_HOURS=48 DRY_RUN=1 python main.py
 ```
 
 ### 4. GitHub Actions (production)
@@ -97,6 +103,9 @@ python main.py
    - Value: the FULL contents of `service_account.json`
 3. Actions → enable workflows
 4. The workflow runs automatically every 2 hours
+5. To test by hand: Actions → Check Water Outage News → Run workflow. The
+   `dry_run` input classifies and logs without sending any push, and
+   `lookback_hours` widens the search window.
 
 ## Monitored cities
 
