@@ -24,26 +24,35 @@ AJUDA_CREDENCIAL = (
 )
 
 
+BOM = "﻿"  # marca invisivel que alguns editores colam no inicio do arquivo
+
+
+def _segredo() -> str:
+    """Valor do secret, sem BOM nem espacos — os dois sobrevivem a um Ctrl+V."""
+    return os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").replace(BOM, "").strip()
+
+
 def credenciais_disponiveis() -> bool:
     """Checagem barata, para falhar antes de processar as noticias."""
-    return bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT")) or os.path.exists(
-        ARQUIVO_LOCAL
-    )
+    return bool(_segredo()) or os.path.exists(ARQUIVO_LOCAL)
 
 
 def init_firebase():
     if firebase_admin._apps:
         return
 
-    sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+    sa_json = _segredo()
     if sa_json:
         try:
             cred = credentials.Certificate(json.loads(sa_json))
         except json.JSONDecodeError as exc:
+            # Diagnostico sem vazar a chave: tamanho e primeiro caractere bastam
+            # para separar "colou vazio" de "colou a coisa errada".
             raise RuntimeError(
-                "FIREBASE_SERVICE_ACCOUNT existe, mas nao e um JSON valido. "
-                "Cole o conteudo do arquivo sem reformatar — as quebras de linha "
-                "da private_key sao \\n escapados e precisam continuar assim."
+                f"FIREBASE_SERVICE_ACCOUNT nao e um JSON valido: tem "
+                f"{len(sa_json)} caractere(s) e comeca com {sa_json[:1]!r}. "
+                "O conteudo certo comeca com '{' e tem uns 2000 caracteres — "
+                "e o arquivo inteiro da service account, colado sem reformatar."
             ) from exc
     elif os.path.exists(ARQUIVO_LOCAL):
         cred = credentials.Certificate(ARQUIVO_LOCAL)
