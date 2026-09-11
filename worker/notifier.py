@@ -13,14 +13,43 @@ from slug import slugify, city_topic
 COOLDOWN_HORAS = int(os.environ.get("COOLDOWN_HORAS", "12"))
 
 
+ARQUIVO_LOCAL = "service_account.json"
+
+AJUDA_CREDENCIAL = (
+    "Credencial do Firebase ausente.\n"
+    "  No GitHub: Settings > Secrets and variables > Actions > New repository\n"
+    "  secret, com o nome FIREBASE_SERVICE_ACCOUNT e o conteudo inteiro do JSON\n"
+    "  da service account (da primeira chave { ate a ultima }).\n"
+    f"  Localmente: salve o mesmo JSON como worker/{ARQUIVO_LOCAL}."
+)
+
+
+def credenciais_disponiveis() -> bool:
+    """Checagem barata, para falhar antes de processar as noticias."""
+    return bool(os.environ.get("FIREBASE_SERVICE_ACCOUNT")) or os.path.exists(
+        ARQUIVO_LOCAL
+    )
+
+
 def init_firebase():
     if firebase_admin._apps:
         return
+
     sa_json = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
     if sa_json:
-        cred = credentials.Certificate(json.loads(sa_json))
+        try:
+            cred = credentials.Certificate(json.loads(sa_json))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "FIREBASE_SERVICE_ACCOUNT existe, mas nao e um JSON valido. "
+                "Cole o conteudo do arquivo sem reformatar — as quebras de linha "
+                "da private_key sao \\n escapados e precisam continuar assim."
+            ) from exc
+    elif os.path.exists(ARQUIVO_LOCAL):
+        cred = credentials.Certificate(ARQUIVO_LOCAL)
     else:
-        cred = credentials.Certificate("service_account.json")
+        raise RuntimeError(AJUDA_CREDENCIAL)
+
     firebase_admin.initialize_app(cred)
 
 

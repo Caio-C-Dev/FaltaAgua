@@ -29,8 +29,10 @@ from article import fetch_article_text
 from classifier import classify, extract_bairros
 from news_fetcher import fetch_recent_news
 from notifier import (
+    AJUDA_CREDENCIAL,
     already_sent,
     cidades_fora_de_cooldown,
+    credenciais_disponiveis,
     init_firebase,
     marcar_cooldown,
     mark_sent,
@@ -92,6 +94,12 @@ def imprimir(alertas: list[dict]):
 
 
 def main() -> int:
+    # Antes de gastar 5 feeds e N requisições HTTP: sem credencial o run só
+    # poderia terminar em erro na última etapa.
+    if not DRY_RUN and not credenciais_disponiveis():
+        print(f"[erro] {AJUDA_CREDENCIAL}", file=sys.stderr)
+        return 1
+
     alertas = collect_alerts(LOOKBACK_HOURS)
     if not alertas:
         print("Nada a enviar.")
@@ -106,12 +114,8 @@ def main() -> int:
 
     try:
         init_firebase()
-    except Exception:
-        print(
-            "[erro] não foi possível inicializar o Firebase. Confira o secret "
-            "FIREBASE_SERVICE_ACCOUNT (no CI) ou worker/service_account.json (local).",
-            file=sys.stderr,
-        )
+    except Exception as exc:
+        print(f"[erro] falha ao inicializar o Firebase: {exc}", file=sys.stderr)
         raise
 
     enviados = 0
