@@ -46,6 +46,7 @@ FaltaAgua/
 │   ├── config.py           # Cities + keywords
 │   ├── news_fetcher.py     # Google News RSS
 │   ├── classifier.py       # ALERT / RECOVERY + neighborhood extraction
+│   ├── article.py          # Fetches article body (RSS has no text)
 │   ├── notifier.py         # FCM + Firestore deduplication
 │   ├── slug.py             # Same normalization as the app
 │   └── requirements.txt
@@ -106,6 +107,19 @@ LOOKBACK_HOURS=48 DRY_RUN=1 python main.py
 5. To test by hand: Actions → Check Water Outage News → Run workflow. The
    `dry_run` input classifies and logs without sending any push, and
    `lookback_hours` widens the search window.
+
+## Deduplication
+
+The same outage is typically covered by four or five outlets, so deduplication
+happens at two levels:
+
+- **By link** (`sent_alerts`) — the same article is never processed twice.
+- **By event** (`alert_cooldown`) — after notifying a city, that city stays
+  silent for `COOLDOWN_HORAS` (default 12) for that alert type. The other
+  outlets' articles still land in the history, but send no push.
+
+`MAX_PUSHES` (default 5) caps how many alerts a single run may send, so a wide
+`LOOKBACK_HOURS` without `DRY_RUN` can't flood everyone's phone.
 
 ## Monitored cities
 

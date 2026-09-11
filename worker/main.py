@@ -1,26 +1,46 @@
 """Entry point do worker.
 
-Fluxo: busca no Google News RSS -> classifica -> deduplica no Firestore ->
-dispara push por tópico de cidade.
+Fluxo: busca no Google News RSS -> classifica -> abre a matéria para pegar
+bairros -> deduplica (por link e por cidade) -> dispara push por tópico.
 
 Variáveis de ambiente:
   FIREBASE_SERVICE_ACCOUNT  JSON completo da service account (usado no CI).
                             Sem ela, cai em worker/service_account.json.
   LOOKBACK_HOURS            Janela de busca em horas (padrão 3). O cron roda a
                             cada 2h, então a sobreposição é proposital — a
-                            deduplicação no Firestore evita push repetido.
+                            deduplicação evita push repetido.
   DRY_RUN=1                 Só imprime o que seria enviado; não toca no Firebase.
+  MAX_PUSHES                Teto de alertas enviados por execução (padrão 5).
+                            Protege contra disparo em massa se alguém rodar
+                            com uma janela larga sem o DRY_RUN.
+  MAX_ALERTAS               Teto de alertas avaliados por execução (padrão 30).
+                            Limita as leituras no Firestore quando uma janela
+                            larga traz dezenas de matérias do mesmo evento.
+  MAX_ARTIGOS               Quantas matérias abrir por execução para extrair
+                            bairros (padrão 10). Cada uma é uma requisição HTTP.
+  COOLDOWN_HORAS            Silêncio por (tipo, cidade) — ver notifier.py.
 """
 
 import os
 import sys
 import traceback
 
-from classifier import classify
+from article import fetch_article_text
+from classifier import classify, extract_bairros
 from news_fetcher import fetch_recent_news
-from notifier import already_sent, init_firebase, mark_sent, send_push
+from notifier import (
+    already_sent,
+    cidades_fora_de_cooldown,
+    init_firebase,
+    marcar_cooldown,
+    mark_sent,
+    send_push,
+)
 
 LOOKBACK_HOURS = int(os.environ.get("LOOKBACK_HOURS", "3"))
+MAX_PUSHES = int(os.environ.get("MAX_PUSHES", "5"))
+MAX_ALERTAS = int(os.environ.get("MAX_ALERTAS", "30"))
+MAX_ARTIGOS = int(os.environ.get("MAX_ARTIGOS", "10"))
 DRY_RUN = os.environ.get("DRY_RUN", "").strip().lower() in ("1", "true", "yes")
 
 
@@ -45,19 +65,40 @@ def collect_alerts(hours: int) -> list[dict]:
     return alertas
 
 
-def main() -> int:
-    alertas = collect_alerts(LOOKBACK_HOURS)
+def enriquecer_bairros(alertas: list[dict], limite: int):
+    """Abre a matéria dos ALERTAS para extrair bairros (o RSS não traz corpo)."""
+    abertas = 0
+    for alerta in alertas:
+        if abertas >= limite:
+            break
+        if alerta["tipo"] != "ALERTA" or alerta["bairros"]:
+            continue
 
+        texto = fetch_article_text(alerta["link"])
+        abertas += 1
+        if texto:
+            alerta["bairros"] = extract_bairros(texto)
+
+    if abertas:
+        print(f"[article] {abertas} matéria(s) aberta(s) para extrair bairros")
+
+
+def imprimir(alertas: list[dict]):
     for a in alertas:
-        bairros = ", ".join(a["bairros"]) or "-"
         print(f"  [{a['tipo']}] {a['titulo']}")
         print(f"      cidades: {', '.join(a['cidades'])}")
-        print(f"      bairros: {bairros}")
+        print(f"      bairros: {', '.join(a['bairros']) or '-'}")
         print(f"      link:    {a['link']}")
 
+
+def main() -> int:
+    alertas = collect_alerts(LOOKBACK_HOURS)
     if not alertas:
         print("Nada a enviar.")
         return 0
+
+    enriquecer_bairros(alertas, MAX_ARTIGOS)
+    imprimir(alertas)
 
     if DRY_RUN:
         print("DRY_RUN ativo — nenhum push enviado.")
@@ -75,23 +116,50 @@ def main() -> int:
 
     enviados = 0
     repetidos = 0
+    silenciados = 0
     falhas = 0
 
-    for alerta in alertas:
+    lote = alertas[:MAX_ALERTAS]
+    if len(alertas) > len(lote):
+        print(f"[limite] MAX_ALERTAS={MAX_ALERTAS}: avaliando os {len(lote)} primeiros.")
+
+    for processados, alerta in enumerate(lote):
+        if enviados >= MAX_PUSHES:
+            print(
+                f"[limite] MAX_PUSHES={MAX_PUSHES} atingido; "
+                f"{len(lote) - processados} alerta(s) não processado(s) "
+                "nesta execução."
+            )
+            break
+
         try:
             if already_sent(alerta):
                 repetidos += 1
                 print(f"[skip] já enviado: {alerta['titulo']}")
                 continue
-            send_push(alerta)
-            mark_sent(alerta)
+
+            cidades = cidades_fora_de_cooldown(alerta)
+            if not cidades:
+                silenciados += 1
+                # Registra no histórico do app, mas sem push: outro veículo já
+                # noticiou o mesmo desabastecimento há pouco.
+                mark_sent(alerta, [])
+                print(f"[cooldown] sem push: {alerta['titulo']}")
+                continue
+
+            send_push(alerta, cidades)
+            mark_sent(alerta, cidades)
+            marcar_cooldown(alerta, cidades)
             enviados += 1
         except Exception:
             falhas += 1
             print(f"[erro] falha ao processar: {alerta['link']}", file=sys.stderr)
             traceback.print_exc()
 
-    print(f"Resumo: {enviados} enviado(s), {repetidos} repetido(s), {falhas} falha(s).")
+    print(
+        f"Resumo: {enviados} enviado(s), {repetidos} repetido(s), "
+        f"{silenciados} silenciado(s) por cooldown, {falhas} falha(s)."
+    )
     return 1 if falhas else 0
 
 

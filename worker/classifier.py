@@ -144,12 +144,19 @@ _NAO_BAIRRO = (
 )
 
 
-def extract_bairros(text: str) -> list[str]:
-    """Extrai bairros de trechos como 'nos bairros Centro, Savassi e Lourdes'."""
+def extract_bairros(text: str, limite: int = 15) -> list[str]:
+    """Extrai bairros de trechos como 'nos bairros Centro, Savassi e Lourdes'.
+
+    O `limite` existe porque o corpo da matéria costuma ter menus e listas de
+    notícias relacionadas — sem teto, uma página ruim vira dezenas de falsos
+    bairros no Firestore.
+    """
     encontrados: list[str] = []
     vistos: set[str] = set()
 
     for match in _BAIRRO_RE.finditer(text):
+        if len(encontrados) >= limite:
+            break
         trecho = _CORTE_RE.split(match.group(1))[0]
         for parte in _SEPARADOR_RE.split(trecho):
             nome = _clean_bairro(parte)
